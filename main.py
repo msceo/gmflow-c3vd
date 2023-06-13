@@ -15,6 +15,8 @@ from evaluate import (validate_chairs, validate_things, validate_sintel, validat
 from utils.logger import Logger
 from utils import misc
 from utils.dist_utils import get_dist_info, init_dist, setup_for_distributed
+from torchvision import transforms
+from utils.flow_viz import flow_to_color
 
 
 def get_args_parser():
@@ -117,6 +119,7 @@ def get_args_parser():
 
 
 def main(args):
+    # args.local_rank = int(os.environ['LOCAL_RANK'])
     if not args.eval and not args.submission and args.inference_dir is None:
         if args.local_rank == 0:
             print('pytorch version:', torch.__version__)
@@ -171,7 +174,7 @@ def main(args):
             output_device=args.local_rank)
         model_without_ddp = model.module
     else:
-        if torch.cuda.device_count() > 1:
+        if torch.cuda.device_count() > 2:
             print('Use %d GPUs' % torch.cuda.device_count())
             model = torch.nn.DataParallel(model)
 
@@ -346,7 +349,7 @@ def main(args):
     shuffle = False if args.distributed else True
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size,
                                                shuffle=shuffle, num_workers=args.num_workers,
-                                               pin_memory=True, drop_last=True,
+                                               pin_memory=False, drop_last=True,
                                                sampler=train_sampler)
 
     last_epoch = start_step if args.resume and start_step > 0 else -1

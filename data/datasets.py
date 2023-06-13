@@ -11,6 +11,8 @@ import os.path as osp
 
 from utils import frame_utils
 from data.transforms import FlowAugmentor, SparseFlowAugmentor
+from PIL import Image
+import cv2
 
 
 class FlowDataset(data.Dataset):
@@ -19,6 +21,7 @@ class FlowDataset(data.Dataset):
                  ):
         self.augmentor = None
         self.sparse = sparse
+        self.resize = aug_params['resize']
 
         if aug_params is not None:
             if sparse:
@@ -64,17 +67,33 @@ class FlowDataset(data.Dataset):
             flow, valid = frame_utils.readFlowKITTI(self.flow_list[index])  # [H, W, 2], [H, W]
         else:
             flow = frame_utils.read_gen(self.flow_list[index])
+            flow = flow.resize(self.resize)
 
         if self.load_occlusion:
             occlusion = frame_utils.read_gen(self.occ_list[index])  # [H, W], 0 or 255 (occluded)
 
         img1 = frame_utils.read_gen(self.image_list[index][0])
         img2 = frame_utils.read_gen(self.image_list[index][1])
+        img1 = img1.resize(self.resize)
+        img2 = img2.resize(self.resize)
 
         flow = np.array(flow).astype(np.float32)
         img1 = np.array(img1).astype(np.uint8)
         img2 = np.array(img2).astype(np.uint8)
 
+        # Discard the Blue channel of the flow
+        if flow.shape[2] == 3:
+            flow = flow[:,:,:2]
+        
+        # Restore the optical flow to original scale
+        flow = (flow - np.min(flow)) * ( 40 / (np.max(flow) - np.min(flow))) - 20
+
+        # # Apply mask
+        # mask = Image.open('mask_resize2.png').convert('L')
+        # mask = np.array(mask)
+        # mask = np.stack((mask, mask), axis=-1)
+        # flow = flow * mask
+        
         if self.load_occlusion:
             occlusion = np.array(occlusion).astype(np.float32)
 
@@ -267,6 +286,17 @@ class HD1K(FlowDataset):
 
             seq_ix += 1
 
+class C3VD(FlowDataset):
+    def __init__(self, aug_params=None, root='/data/songzl/Dataset/C3VD'):
+        super(C3VD, self).__init__(aug_params, sparse=False)
+        subsets = os.listdir(root)
+        for subset in subsets:
+            flows = sorted(glob(os.path.join(root, subset, '*_flow.tiff')))
+            images = sorted(glob(os.path.join(root, subset, '*_color.png')))
+
+            for i in range(len(flows) - 1):
+                self.flow_list += [flows[i]]
+                self.image_list += [[images[i], images[i + 1]]]
 
 def build_train_dataset(args):
     """ Create the data loader for the corresponding training set """
@@ -306,6 +336,13 @@ def build_train_dataset(args):
 
         train_dataset = KITTI(aug_params, split='training',
                               )
+
+    elif args.stage == 'C3VD':
+        h, w = args.image_size
+        aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True, 'resize': [w, h]}
+
+        train_dataset = C3VD(aug_params)
+    
     else:
         raise ValueError(f'stage {args.stage} is not supported')
 

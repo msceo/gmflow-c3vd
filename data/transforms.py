@@ -6,7 +6,7 @@ from torchvision.transforms import ColorJitter
 
 class FlowAugmentor:
     def __init__(self, crop_size, min_scale=-0.2, max_scale=0.5, do_flip=True,
-                 no_eraser_aug=True,
+                 no_eraser_aug=True, resize=None
                  ):
         # spatial augmentation params
         self.crop_size = crop_size
@@ -15,6 +15,7 @@ class FlowAugmentor:
         self.spatial_aug_prob = 0.8
         self.stretch_prob = 0.8
         self.max_stretch = 0.2
+        self.resize = resize
 
         # flip augmentation params
         self.do_flip = do_flip
@@ -132,11 +133,11 @@ class FlowAugmentor:
         img1, img2 = self.color_transform(img1, img2)
         img1, img2 = self.eraser_transform(img1, img2)
 
-        if occlusion is not None:
-            img1, img2, flow, occlusion = self.spatial_transform(
-                img1, img2, flow, occlusion)
-        else:
-            img1, img2, flow = self.spatial_transform(img1, img2, flow)
+        # if occlusion is not None:
+        #     img1, img2, flow, occlusion = self.spatial_transform(
+        #         img1, img2, flow, occlusion)
+        # else:
+        #     img1, img2, flow = self.spatial_transform(img1, img2, flow)
 
         img1 = np.ascontiguousarray(img1)
         img2 = np.ascontiguousarray(img2)

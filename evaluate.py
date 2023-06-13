@@ -12,7 +12,7 @@ from utils.flow_viz import save_vis_flow_tofile
 from utils.utils import InputPadder, compute_out_of_boundary_mask
 from glob import glob
 from gmflow.geometry import forward_backward_consistency_check
-
+import cv2
 
 @torch.no_grad()
 def create_sintel_submission(model,
@@ -635,6 +635,8 @@ def inference_on_dir(model,
 
         flow_pr = results_dict['flow_preds'][-1]  # [B, 2, H, W]
 
+        # define mask
+        mask = cv2.imread('mask.png', cv2.IMREAD_GRAYSCALE)
         # resize back
         if inference_size is not None:
             flow_pr = F.interpolate(flow_pr, size=ori_size, mode='bilinear',
@@ -646,6 +648,8 @@ def inference_on_dir(model,
             flow = padder.unpad(flow_pr[0]).permute(1, 2, 0).cpu().numpy()  # [H, W, 2]
         else:
             flow = flow_pr[0].permute(1, 2, 0).cpu().numpy()  # [H, W, 2]
+        # apply mask to flow
+        flow = cv2.bitwise_and(flow, flow, mask=mask)
 
         output_file = os.path.join(output_path, os.path.basename(filenames[test_id])[:-4] + '_flow.png')
 
