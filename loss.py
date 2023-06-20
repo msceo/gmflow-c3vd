@@ -1,5 +1,5 @@
 import torch
-
+import cv2
 
 def flow_loss_func(flow_preds, flow_gt, valid,
                    gamma=0.9,
@@ -35,3 +35,11 @@ def flow_loss_func(flow_preds, flow_gt, valid,
     }
 
     return flow_loss, metrics
+
+def apply_mask(flow_preds):
+    mask = cv2.imread('mask_672.png', cv2.IMREAD_GRAYSCALE)
+    mask[mask>0]=1
+    mask = torch.tensor(mask, device=flow_preds[0].device)
+    mask = torch.stack((mask, mask), dim=-1).unsqueeze(dim=0).permute(0,3,1,2)
+    flow_preds = flow_preds * mask
+    return flow_preds

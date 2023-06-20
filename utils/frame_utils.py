@@ -116,8 +116,14 @@ def writeFlowKITTI(filename, uv):
 
 def read_gen(file_name, pil=False):
     ext = splitext(file_name)[-1]
-    if ext == '.png' or ext == '.jpeg' or ext == '.ppm' or ext == '.jpg' or ext=='.tiff':
-        return Image.open(file_name)
+    if ext == '.png' or ext == '.jpeg' or ext == '.ppm' or ext == '.jpg':
+        cv_img = cv2.imread(file_name)
+        return cv2.cvtColor(cv_img, cv2.COLOR_BGR2RGB)
+        # return Image.open(file_name)
+    if ext == '.tiff':
+        cv_img = cv2.imread(file_name, cv2.IMREAD_UNCHANGED)
+        return cv2.cvtColor(cv_img, cv2.COLOR_BGR2RGB)
+        # return Image.open(file_name)
     elif ext == '.bin' or ext == '.raw':
         return np.load(file_name)
     elif ext == '.flo':

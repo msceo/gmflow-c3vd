@@ -8,8 +8,8 @@ import os
 
 from data import build_train_dataset
 from gmflow.gmflow import GMFlow
-from loss import flow_loss_func
-from evaluate import (validate_chairs, validate_things, validate_sintel, validate_kitti,
+from loss import flow_loss_func, apply_mask
+from evaluate import (validate_chairs, validate_things, validate_sintel, validate_kitti, validate_C3VD,
                       create_sintel_submission, create_kitti_submission, inference_on_dir)
 
 from utils.logger import Logger
@@ -119,7 +119,7 @@ def get_args_parser():
 
 
 def main(args):
-    # args.local_rank = int(os.environ['LOCAL_RANK'])
+    args.local_rank = int(os.environ['LOCAL_RANK'])
     if not args.eval and not args.submission and args.inference_dir is None:
         if args.local_rank == 0:
             print('pytorch version:', torch.__version__)
@@ -201,6 +201,9 @@ def main(args):
         checkpoint = torch.load(args.resume, map_location=loc)
 
         weights = checkpoint['model'] if 'model' in checkpoint else checkpoint
+        weights.pop("upsampler.2.weight")
+        weights.pop("upsampler.2.bias")
+
 
         model_without_ddp.load_state_dict(weights, strict=args.strict_resume)
 
@@ -252,6 +255,15 @@ def main(args):
         if 'kitti' in args.val_dataset:
             results_dict = validate_kitti(model_without_ddp,
                                           padding_factor=args.padding_factor,
+                                          with_speed_metric=args.with_speed_metric,
+                                          attn_splits_list=args.attn_splits_list,
+                                          corr_radius_list=args.corr_radius_list,
+                                          prop_radius_list=args.prop_radius_list,
+                                          )
+            val_results.update(results_dict)
+        
+        if 'C3VD' in args.val_dataset:
+            results_dict = validate_C3VD(model_without_ddp,
                                           with_speed_metric=args.with_speed_metric,
                                           attn_splits_list=args.attn_splits_list,
                                           corr_radius_list=args.corr_radius_list,
@@ -380,6 +392,10 @@ def main(args):
 
         for i, sample in enumerate(train_loader):
             img1, img2, flow_gt, valid = [x.to(device) for x in sample]
+
+            if img1 is None:
+                print('Data from different subset, skipping this step')
+                continue
 
             results_dict = model(img1, img2,
                                  attn_splits_list=args.attn_splits_list,

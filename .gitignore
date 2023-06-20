@@ -3,3 +3,6 @@ c3vd*
 mask*
 *.pth
 checkpoints
+.vscode
+*.png
+*.ipynb

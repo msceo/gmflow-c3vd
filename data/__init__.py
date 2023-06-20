@@ -4,4 +4,5 @@ from .datasets import (FlyingChairs,
                        MpiSintel,
                        KITTI,
                        HD1K,
+                       C3VD,
                        )
