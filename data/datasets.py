@@ -10,9 +10,10 @@ from glob import glob
 import os.path as osp
 
 from utils import frame_utils
-from data.transforms import FlowAugmentor, SparseFlowAugmentor
+from data.transforms import FlowAugmentor, SparseFlowAugmentor, elasticImage2Flow
 from PIL import Image
 import cv2
+import random
 
 
 class FlowDataset(data.Dataset):
@@ -37,7 +38,8 @@ class FlowDataset(data.Dataset):
 
         mask = cv2.imread('mask_672.png', cv2.IMREAD_GRAYSCALE)
         mask[mask>0] = 1
-        mask = np.stack((mask, mask), axis=-1)
+        # mask = np.stack((mask, mask), axis=-1)
+        mask = np.expand_dims(mask, -1)
         self.mask = mask
 
         self.load_occlusion = load_occlusion
@@ -109,8 +111,12 @@ class FlowDataset(data.Dataset):
         # Apply mask to flow
         flow = flow * self.mask
 
-        if flow.min() < -15:
-            print('{} flow min less than -15.'.format(self.flow_list[index]))
+        if random.uniform(0, 1) < 0.25:
+            img2, flow = elasticImage2Flow(img1, self.mask)
+            print("{} flow min less.\n".format(flow.min()))
+
+        # if flow.min() < -15:
+        #     print('{} flow min less than -15.'.format(self.flow_list[index]))
 
         if self.load_occlusion:
             occlusion = np.array(occlusion).astype(np.float32)
@@ -320,12 +326,10 @@ def build_train_dataset(args):
     """ Create the data loader for the corresponding training set """
     if args.stage == 'chairs':
         aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
-
         train_dataset = FlyingChairs(aug_params, split='training')
 
     elif args.stage == 'things':
         aug_params = {'crop_size': args.image_size, 'min_scale': -0.4, 'max_scale': 0.8, 'do_flip': True}
-
         clean_dataset = FlyingThings3D(aug_params, dstype='frames_cleanpass')
         final_dataset = FlyingThings3D(aug_params, dstype='frames_finalpass')
         train_dataset = clean_dataset + final_dataset

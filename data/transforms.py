@@ -2,6 +2,9 @@ import numpy as np
 import cv2
 from PIL import Image
 from torchvision.transforms import ColorJitter
+import torchio as tio
+import SimpleITK as sitk
+import random
 
 
 class FlowAugmentor:
@@ -283,3 +286,61 @@ class SparseFlowAugmentor:
         valid = np.ascontiguousarray(valid)
 
         return img1, img2, flow, valid
+
+
+def elasticImage2Flow(image, mask = None):
+    # param:
+    # iamge: [h, w, 3]
+    # translate: tuple() maxdisplacement
+    # mask: nd.array
+    # return:
+    # @deform_image ：[h,w,3]
+    # @flow : np.array
+
+    random_x = random.uniform(50, 150)
+    random_y = random.uniform(50, 150)
+    random_z = random.uniform(50, 150)
+
+    translate = (random_x, random_y, random_z)
+
+    image = np.expand_dims(image, 0).transpose(3,2,1,0)
+    image = tio.ScalarImage(tensor = image)
+    elastic_cps = tio.RandomElasticDeformation.get_params(
+            num_control_points=(7,7,7),
+            max_displacement=translate,
+            num_locked_borders=2,
+        )
+    elastic = tio.ElasticDeformation(
+            control_points=elastic_cps, max_displacement=translate
+        )
+    
+    # tio.ScalarImage  形变后图片
+    deform_image = elastic(image)
+
+    elastic_sitk = elastic.get_bspline_transform(image.as_sitk(force_3d=True))
+
+    t2df = sitk.TransformToDisplacementFieldFilter()
+    t2df.SetReferenceImage(image.as_sitk(force_3d=True))
+    displacement_field =  t2df.Execute(elastic_sitk)
+
+    # displacement vector 
+    vectors = sitk.GetArrayFromImage(displacement_field)
+    U = vectors[0, :,:,0] # dx
+    V = vectors[0, :,:,1] # dy
+
+    flow = np.zeros((vectors.shape[1], vectors.shape[2], 2))
+    flow[:, :, 0] = U
+    flow[:, :, 1] = V
+
+    deform_image = deform_image.numpy().squeeze(-1).transpose(2,1,0)
+
+    if mask.all() !=  None :
+        # mask = np.expand_dims(mask, -1)
+
+        flow = flow * mask
+
+        deform_image = deform_image * mask
+
+
+
+    return deform_image, flow
